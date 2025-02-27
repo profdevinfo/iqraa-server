@@ -1,12 +1,20 @@
-const express = require('express')
-const cors = require('cors');
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+import express from "express";
+import cors from "cors";
+import { createRequire } from "module";
 
+// const cors = require('cors');
+// const { verify, sign } = require('jsonwebtoken');
+import { initializeApp, cert } from "firebase-admin/app"
+import { getFirestore } from "firebase-admin/firestore"
+// const { initializeApp, cert } = require('firebase-admin/app');
+// const { getFirestore } = require('firebase-admin/firestore');
 
 const app = express();
 
+const require = createRequire(import.meta.url);
 
+
+// const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 const serviceAccount = require('./serviceAccountKey.json');
 
 
@@ -15,6 +23,11 @@ initializeApp({
 });
 
 const db = getFirestore();
+
+
+app.get("/message", (_, res) => res.send("Hello from express!"));
+
+
 
 // المفتاح السري لـ JWT - يجب تخزينه في متغيرات البيئة
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -118,6 +131,8 @@ app.get('/api/school-data', authenticateToken, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3030;
+
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
