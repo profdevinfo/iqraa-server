@@ -2,28 +2,20 @@ import express from "express";
 import cors from "cors";
 import { createRequire } from "module";
 
-import {rateLimit} from "express-rate-limit"
+
 
 import pkg from 'jsonwebtoken';
 const { verify, sign } = pkg;
 
 import { initializeApp, cert } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
-// const { initializeApp, cert } = require('firebase-admin/app');
-// const { getFirestore } = require('firebase-admin/firestore');
 
-//const limiter = rateLimit({
-//  windowMs: 15 * 60 * 1000, // 15 دقيقة
-//  max: 5, // 5 محاولات كحد أقصى
-//  message: 'تم تجاوز عدد المحاولات المسموح بها. الرجاء المحاولة بعد 15 دقيقة',
-//});
 
 const app = express();
 
 const require = createRequire(import.meta.url);
 
 
-<<<<<<< HEAD
 // Store request counts per IP
 const requestCounts = {};
 
@@ -65,8 +57,6 @@ const rateLimiter = (req, res, next) => {
 
 
 
-=======
->>>>>>> 6f0a02e730943433033d05127bf74d7efaa3dcb9
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 // const serviceAccount = require('./serviceAccountKey.json');
 
