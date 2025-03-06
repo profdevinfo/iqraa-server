@@ -2,6 +2,11 @@
 node_modules
 
 serviceAccountKey.json
+index.js
+package-lock.json
+package.json
+yarn.lock
+firebase.json
 
 # local env files
 .env.local
