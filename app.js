@@ -2,16 +2,66 @@ import express from "express";
 import cors from "cors";
 import { createRequire } from "module";
 
-// const cors = require('cors');
-// const { verify, sign } = require('jsonwebtoken');
+import {rateLimit} from "express-rate-limit"
+
+import pkg from 'jsonwebtoken';
+const { verify, sign } = pkg;
+
 import { initializeApp, cert } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
 // const { initializeApp, cert } = require('firebase-admin/app');
 // const { getFirestore } = require('firebase-admin/firestore');
 
+//const limiter = rateLimit({
+//  windowMs: 15 * 60 * 1000, // 15 دقيقة
+//  max: 5, // 5 محاولات كحد أقصى
+//  message: 'تم تجاوز عدد المحاولات المسموح بها. الرجاء المحاولة بعد 15 دقيقة',
+//});
+
 const app = express();
 
 const require = createRequire(import.meta.url);
+
+
+// Store request counts per IP
+const requestCounts = {};
+
+// Custom rate limiter middleware
+const rateLimiter = (req, res, next) => {
+  const { lang } = req.body;
+  const ip = req.ip;
+  const now = Date.now();
+  
+  if (!requestCounts[ip]) {
+    requestCounts[ip] = { count: 1, lastRequest: now };
+  } else {
+    const timeSinceLastRequest = now - requestCounts[ip].lastRequest;
+    const timeLimit = 15 * 60 * 1000; // 15 minutes
+
+    if (timeSinceLastRequest < timeLimit) {
+      requestCounts[ip].count += 1;
+    } else {
+      requestCounts[ip] = { count: 1, lastRequest: now }; // Reset after time window
+    }
+  }
+
+  const maxRequests = 10;
+
+  if (requestCounts[ip].count > maxRequests) {
+    let msg = 'Too many requests,please try again after 15 minutes.'
+      if(lang!=='en'){
+        msg = lang === 'ar' ? 'تم تجاوز عدد المحاولات المسموح بها. الرجاء المحاولة بعد 15 دقيقة' :'Trop de demandes, veuillez réessayer après 15 minutes.'
+      }
+    return res.status(429).json({ 
+      message: msg });
+  }
+
+  requestCounts[ip].lastRequest = now;
+  next();
+};
+
+
+
 
 
 // const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -34,6 +84,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/login', rateLimiter)
 
 // Middleware للتحقق من صحة JWT
 const authenticateToken = (req, res, next) => {
@@ -41,12 +92,16 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ message: 'غير مصرح' });
+    return res.status(401).json({ 
+      message_ar: 'غير مصرح', 
+      message: 'Unauthorized' });
   }
 
   verify(token, JWT_SECRET, (err, school) => {
     if (err) {
-      return res.status(403).json({ message: 'الرمز غير صالح أو منتهي الصلاحية' });
+      return res.status(403).json({ 
+        message_ar: 'الرمز غير صالح أو منتهي الصلاحية',
+        message: 'Invalid or expired token' });
     }
     req.school = school;
     next();
@@ -56,12 +111,21 @@ const authenticateToken = (req, res, next) => {
 // مسار تسجيل الدخول والتحقق من رمز المدرسة
 app.post('/api/login', async (req, res) => {
   try {
-    const { schoolKey } = req.body;
+    const { schoolKey , lang } = req.body;
     // console.log('schoolKey',schoolKey)
     // return res.status(401).json({ message: schoolKey});
-
+    let msg = ''
     if (!schoolKey) {
-      return res.status(400).json({ message: 'رمز المدرسة مطلوب' });
+      msg = 'School key is required'
+      if(lang!=='en'){
+        msg = lang === 'ar' ? 'رمز المدرسة مطلوب' :'La clé de l\'école est requise'
+      }
+      return res.status(400).json({ 
+        // message_ar: 'رمز المدرسة مطلوب' ,
+        // message_fr: 'La clé de l\'école est requise',
+        message: msg
+      });
+
     }
 
     // البحث عن المدرسة في Firestore
@@ -69,17 +133,43 @@ app.post('/api/login', async (req, res) => {
     const snapshot = await schoolsRef.where('admin_key', '==', schoolKey).get();
 
     if (snapshot.empty) {
-      return res.status(401).json({ message: 'رمز المدرسة غير صحيح' });
+      msg = 'Invalid school key'
+      if(lang!=='en'){
+        msg = lang === 'ar' ?  'رمز المدرسة غير صحيح'  :'Clé d\'école invalide'
+      }
+      return res.status(401).json({ 
+        // message_ar: 'رمز المدرسة غير صحيح' ,
+        // message_fr: 'Clé d\'école invalide' ,
+        message: msg
+      });
     }
 
     const schoolDoc = snapshot.docs[0];
     const schoolData = schoolDoc.data();
     if(!schoolData.subscription.active){
-      return res.status(401).json({ message: 'المدرسة غير مفعلة' });
+
+      msg = 'Subscription is not active'
+      if(lang!=='en'){
+        msg = lang === 'ar' ?  'الاشتراك غير مفعل'  :'Abonnement non actif'
+      }
+
+      return res.status(401).json({ 
+        // message_ar: 'الاشتراك غير مفعل' ,
+        // message_fr: 'Abonnement non actif' ,
+        message: msg
+      });
     }
     if(schoolData.subscription.endDate.toDate() < new Date().getTime()){
-      return res.status(401).json({ message: 'انتهت صلاحية الاشتراك' 
-        
+
+      msg = 'Subscription has expired'
+      if(lang!=='en'){
+        msg = lang === 'ar' ?   'انتهت صلاحية الاشتراك' :'Abonnement expiré' 
+      }
+
+      return res.status(401).json({ 
+        // message_ar: 'انتهت صلاحية الاشتراك' ,
+        // message_fr: 'Abonnement expiré' ,
+        message: msg
       });
     }
     // إنشاء JWT token
@@ -88,6 +178,7 @@ app.post('/api/login', async (req, res) => {
         schoolId: schoolDoc.id,
         name: schoolData.name,
         name_ar: schoolData.name_ar,
+
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -105,7 +196,7 @@ app.post('/api/login', async (req, res) => {
 
   } catch (error) {
     console.error('Error in login:', error);
-    res.status(500).json({ message: 'حدث خطأ في الخادم' });
+    res.status(500).json({ message: 'Error in login:'+ error });
   }
 });
 
