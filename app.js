@@ -23,6 +23,7 @@ const app = express();
 const require = createRequire(import.meta.url);
 
 
+<<<<<<< HEAD
 // Store request counts per IP
 const requestCounts = {};
 
@@ -64,6 +65,8 @@ const rateLimiter = (req, res, next) => {
 
 
 
+=======
+>>>>>>> 6f0a02e730943433033d05127bf74d7efaa3dcb9
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 // const serviceAccount = require('./serviceAccountKey.json');
 
